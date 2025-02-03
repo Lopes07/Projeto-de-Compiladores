@@ -1,0 +1,11 @@
+void main {
+    let float x;
+    let bool y;
+
+    x := 3.14;
+    y := true;
+
+    if y {
+        printIO x;
+    };
+}

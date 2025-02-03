@@ -1,0 +1,142 @@
+PARSER_BEGIN(Lugosi)
+import java.io.*;
+public class Lugosi {
+
+  public static void main(String args[]) throws ParseException, IOException {
+    Lugosi analisador = new Lugosi(new FileInputStream(args[0]));
+    analisador.Lugosi();
+  }
+
+}
+PARSER_END(Lugosi)
+
+SKIP :
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+}
+
+TOKEN :
+{
+  <MAIN: "main">
+| <LET: "let">
+| <FLOAT: "float">
+| <BOOL: "bool">
+| <TRUE: "true">
+| <FALSE: "false">
+| <ACHAVES: "{">
+| <FCHAVES: "}">
+| <OPENPAREN : "(">
+| <CLOSEPAREN : ")">
+| <VOID: "void">
+| <PV: ";">
+| <ATRIB: ":=">
+| <V: ",">
+| <SOMA: "+">
+| <SUB: "-">
+| <MULT: "*">
+| <DIV: "/">
+| <AND: "&&">
+| <OR: "||">
+| <LESSER: "<">
+| <GREATER: ">">
+| <EQUAL: "==">
+| <IF: "if">
+| <WHILE: "while">
+| <RETURN: "return">
+| <PRINT: "printIO">
+| <READ: "readIO">
+| <DO: "do">
+| <DEF: "def">
+}
+
+TOKEN :
+{
+  <TOKEN_id : (["a"-"z", "A"-"Z"]) (["a"-"z", "A"-"Z", "0"-"9"])* ("_" (["a"-"z", "A"-"Z", "0"-"9"])+)*>
+  | <TOKEN_numliteral : (["0"-"9"])+ ( "." (["0"-"9"])+ )? ( "E" ( "+" | "-" )? (["0"-"9"])+ )? >
+}
+
+// Regras sintáticas
+void Lugosi() :
+{}
+{
+  Main() (Func())* <EOF> 
+}
+
+void Main() :
+{}
+{
+  <VOID> <MAIN> <ACHAVES> VarDecl() SeqComandos() <FCHAVES>
+}
+
+void VarDecl() :
+{}
+{
+  ( <LET> Tipo() <TOKEN_id> <PV> VarDecl() )* 
+}
+
+void Tipo() :
+{}
+{
+  <FLOAT> | <BOOL> | <VOID>
+}
+
+void SeqComandos() :
+{}
+{
+  ( Comando() SeqComandos() )*
+}
+
+void Comando() :
+{}
+{
+  <TOKEN_id> <ATRIB> Exp() <PV>
+| <TOKEN_id> <OPENPAREN> (ListaExp())? <CLOSEPAREN> <PV>
+| <IF> Exp() <ACHAVES> SeqComandos() <FCHAVES> <PV>
+| <WHILE> Exp() <DO> <ACHAVES> SeqComandos() <FCHAVES> <PV>
+| <TOKEN_id> <ATRIB> <READ> <OPENPAREN> <CLOSEPAREN> <PV>
+| <RETURN> Exp() <PV>
+| <PRINT> Exp() <PV>
+}
+
+void Exp() :
+{}
+{
+  "(" Exp() Op() Exp() ")" | Fator()
+}
+
+void Fator() :
+{}
+{
+  <TOKEN_id> 
+  | <TOKEN_id> <OPENPAREN> (ListaExp())? <CLOSEPAREN> 
+  | <TOKEN_numliteral> 
+  | <TRUE> 
+  | <FALSE>  
+}
+
+void Op() :
+{}
+{
+  <SOMA> | <SUB> | <MULT> | <DIV> | <AND> | <OR> | <LESSER> | <GREATER> | <EQUAL>
+}
+
+void ListaExp() :
+{}
+{
+  Exp() ( <V> Exp() )*
+}
+
+void Func() :
+{}
+{
+   <DEF> Tipo() <TOKEN_id> <OPENPAREN> (ListaArg())? <CLOSEPAREN> <ACHAVES> VarDecl() SeqComandos() <FCHAVES> 
+}
+
+void ListaArg() :
+{}
+{
+  Tipo() <TOKEN_id> ( <V> Tipo() <TOKEN_id> )*
+}

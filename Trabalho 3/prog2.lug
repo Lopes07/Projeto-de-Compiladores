@@ -1,0 +1,19 @@
+def float fatorial (float n) {
+    let float resultado;
+
+    if (n < 2) {
+        return 1.0;
+    };
+
+    resultado := n * fatorial(n - 1);
+    return resultado;
+}
+
+void main {
+    let float num;
+    let float resultado;
+
+    num := readIO();
+    resultado := fatorial(num);
+    printIO(resultado);
+}

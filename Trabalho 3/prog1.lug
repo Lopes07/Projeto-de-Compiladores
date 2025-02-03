@@ -1,0 +1,31 @@
+void main {
+    let float a;
+    let float b;
+    let float resultado;
+    let bool condicao;
+
+    a := readIO();
+    b := readIO();
+
+    printIO(a);
+    printIO(b);
+
+    if (a > b) {
+        resultado := a - b;
+    };
+
+    if (a < b) {
+        resultado := a + b;
+    };
+
+    if (a == b) {
+        resultado := a * b;
+    };
+
+    condicao := true;
+
+    while (condicao) do {
+        printIO(resultado);
+        condicao := false;
+    };
+}

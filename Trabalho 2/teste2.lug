@@ -1,0 +1,10 @@
+void main {
+    let float valor_inicial;
+    let float valor_final;
+
+    valor_inicial := 42;
+    valor_final := 3.14E+2;
+
+    printIO valor_inicial;
+    printIO valor_final;
+}

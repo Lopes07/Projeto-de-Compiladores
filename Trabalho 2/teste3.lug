@@ -1,0 +1,10 @@
+void main {
+    let float x1;
+    let float y123_final;
+
+    x1 := 100;
+    y123_final := 0.005E-3;
+
+    printIO x1;
+    printIO y123_final;
+}
