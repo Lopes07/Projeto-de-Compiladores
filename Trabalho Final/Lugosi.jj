@@ -1,0 +1,368 @@
+PARSER_BEGIN(Lugosi)
+import java.io.*;
+import java.util.ArrayList;
+
+import ast.*;
+
+public class Lugosi {
+
+  public static void main(String args[]) throws ParseException, IOException {
+    if (args.length == 0) {
+      System.out.println("Uso: java Lugosi <arquivo.lugosi>");
+      return;
+    }
+    
+    FileInputStream fs = new FileInputStream(new File(args[0]));
+    Lugosi parser = new Lugosi(fs);
+    
+    try {
+      Prog arvore = parser.Lugosi();
+      System.out.println("Análise sintática concluída com sucesso!");
+      
+      // Gerar código a partir da árvore sintática
+      geraCodigo(arvore, args[0]);
+    } catch (ParseException e) {
+      System.err.println("Erro de análise sintática: " + e.getMessage());
+    }
+  }
+  
+  public static void geraCodigo(Prog prog, String arquivo) {
+    try {
+      String nomeArquivoSaida = arquivo.substring(0, arquivo.lastIndexOf('.')) + ".java";
+      PrintWriter writer = new PrintWriter(nomeArquivoSaida);
+      
+      // Gerar código Java a partir da árvore sintática
+      writer.println("// Código gerado pelo compilador Lugosi");
+      writer.println("public class " + nomeArquivoSaida.substring(nomeArquivoSaida.lastIndexOf(File.separator) + 1, nomeArquivoSaida.lastIndexOf('.')) + " {");
+      
+      // Gerar código para o main
+      writer.println("  public static void main(String[] args) {");
+      
+      // Declarar variáveis do main
+      for (VarDecl var : prog.main.vars) {
+        if (var.type.equals("float")) {
+          writer.println("    double " + var.var + " = 0.0;");
+        } else if (var.type.equals("bool")) {
+          writer.println("    boolean " + var.var + " = false;");
+        }
+      }
+      
+      // Gerar código para os comandos do main
+      for (Comando cmd : prog.main.coms) {
+        geraCodigoComando(cmd, writer, "    ");
+      }
+      
+      writer.println("  }");
+      
+      // Gerar código para as funções
+      if (prog.fun != null) {
+        for (Fun funcao : prog.fun) {
+          String tipoRetorno = funcao.retorno.equals("float") ? "double" : 
+                              funcao.retorno.equals("bool") ? "boolean" : "void";
+          
+          writer.print("  public static " + tipoRetorno + " " + funcao.nome + "(");
+          
+          // Parâmetros da função
+          for (int i = 0; i < funcao.params.size(); i++) {
+            ParamFormalFun param = funcao.params.get(i);
+            String tipoParam = param.type.equals("float") ? "double" : "boolean";
+            writer.print(tipoParam + " " + param.var);
+            if (i < funcao.params.size() - 1) {
+              writer.print(", ");
+            }
+          }
+          writer.println(") {");
+          
+          // Declarar variáveis locais da função
+          for (VarDecl var : funcao.vars) {
+            if (var.type.equals("float")) {
+              writer.println("    double " + var.var + " = 0.0;");
+            } else if (var.type.equals("bool")) {
+              writer.println("    boolean " + var.var + " = false;");
+            }
+          }
+          
+          // Gerar código para os comandos da função
+          for (Comando cmd : funcao.body) {
+            geraCodigoComando(cmd, writer, "    ");
+          }
+          
+          writer.println("  }");
+        }
+      }
+      
+      writer.println("}");
+      writer.close();
+      
+      System.out.println("Código gerado com sucesso: " + nomeArquivoSaida);
+    } catch (IOException e) {
+      System.err.println("Erro ao gerar código: " + e.getMessage());
+    }
+  }
+  
+  private static void geraCodigoComando(Comando cmd, PrintWriter writer, String indent) {
+    if (cmd instanceof CAtribuicao) {
+      CAtribuicao atrib = (CAtribuicao) cmd;
+      writer.println(indent + atrib.var + " = " + geraCodigoExp(atrib.exp) + ";");
+    } else if (cmd instanceof CChamadaFun) {
+      CChamadaFun chamada = (CChamadaFun) cmd;
+      writer.print(indent + chamada.fun + "(");
+      for (int i = 0; i < chamada.args.size(); i++) {
+        writer.print(geraCodigoExp(chamada.args.get(i)));
+        if (i < chamada.args.size() - 1) {
+          writer.print(", ");
+        }
+      }
+      writer.println(");");
+    } else if (cmd instanceof CIf) {
+      CIf cif = (CIf) cmd;
+      writer.println(indent + "if (" + geraCodigoExp(cif.exp) + ") {");
+      for (Comando c : cif.bloco) {
+        geraCodigoComando(c, writer, indent + "  ");
+      }
+      writer.println(indent + "}");
+    } else if (cmd instanceof CWhile) {
+      CWhile cwhile = (CWhile) cmd;
+      writer.println(indent + "while (" + geraCodigoExp(cwhile.exp) + ") {");
+      for (Comando c : cwhile.bloco) {
+        geraCodigoComando(c, writer, indent + "  ");
+      }
+      writer.println(indent + "}");
+    } else if (cmd instanceof CPrint) {
+      CPrint print = (CPrint) cmd;
+      writer.println(indent + "System.out.println(" + geraCodigoExp(print.exp) + ");");
+    } else if (cmd instanceof CReadInput) {
+      CReadInput read = (CReadInput) cmd;
+      writer.println(indent + "java.util.Scanner scanner = new java.util.Scanner(System.in);");
+      writer.println(indent + read.var + " = scanner.nextDouble();");
+    } else if (cmd instanceof CReturn) {
+      CReturn ret = (CReturn) cmd;
+      writer.println(indent + "return " + geraCodigoExp(ret.exp) + ";");
+    }
+  }
+  
+  private static String geraCodigoExp(Exp exp) {
+    if (exp instanceof EVar) {
+      return ((EVar) exp).var;
+    } else if (exp instanceof EFloat) {
+      return String.valueOf(((EFloat) exp).value);
+    } else if (exp instanceof ETrue) {
+      return "true";
+    } else if (exp instanceof EFalse) {
+      return "false";
+    } else if (exp instanceof EOpExp) {
+      EOpExp opExp = (EOpExp) exp;
+      String op = opExp.op;
+      // Converter operadores específicos de Lugosi para Java
+      if (op.equals("&&")) op = "&&";
+      else if (op.equals("||")) op = "||";
+      else if (op.equals("==")) op = "==";
+      
+      return "(" + geraCodigoExp(opExp.arg1) + " " + op + " " + geraCodigoExp(opExp.arg2) + ")";
+    } else if (exp instanceof EChamadaFun) {
+      EChamadaFun chamada = (EChamadaFun) exp;
+      StringBuilder sb = new StringBuilder();
+      sb.append(chamada.fun).append("(");
+      for (int i = 0; i < chamada.args.size(); i++) {
+        sb.append(geraCodigoExp(chamada.args.get(i)));
+        if (i < chamada.args.size() - 1) {
+          sb.append(", ");
+        }
+      }
+      sb.append(")");
+      return sb.toString();
+    }
+    return "";
+  }
+}
+PARSER_END(Lugosi)
+
+SKIP :
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+}
+
+TOKEN :
+{
+  <MAIN: "main">
+| <LET: "let">
+| <FLOAT: "float">
+| <BOOL: "bool">
+| <TRUE: "true">
+| <FALSE: "false">
+| <ACHAVES: "{">
+| <FCHAVES: "}">
+| <OPENPAREN : "(">
+| <CLOSEPAREN : ")">
+| <VOID: "void">
+| <PV: ";">
+| <ATRIB: ":=">
+| <V: ",">
+| <SOMA: "+">
+| <SUB: "-">
+| <MULT: "*">
+| <DIV: "/">
+| <AND: "&&">
+| <OR: "||">
+| <LESSER: "<">
+| <GREATER: ">">
+| <EQUAL: "==">
+| <IF: "if">
+| <WHILE: "while">
+| <RETURN: "return">
+| <PRINT: "printIO">
+| <READ: "readIO">
+| <DO: "do">
+| <DEF: "def">
+}
+
+TOKEN :
+{
+  <TOKEN_id : (["a"-"z", "A"-"Z"]) (["a"-"z", "A"-"Z", "0"-"9"])* ("_" (["a"-"z", "A"-"Z", "0"-"9"])+)*>
+  | <TOKEN_numliteral : (["0"-"9"])+ ( "." (["0"-"9"])+ )? ( "E" ( "+" | "-" )? (["0"-"9"])+ )? >
+}
+
+// Regras sintáticas
+Prog Lugosi() :
+{Main main = null; ArrayList<Fun> funcs = new ArrayList<Fun>(); Fun f = null;}
+{
+  main = Main() 
+  (f = Func() { funcs.add(f); })*
+  <EOF>
+  
+  {return new Prog(main, funcs);}
+}
+
+Main Main() :
+{ArrayList<VarDecl> decls = new ArrayList<VarDecl>(); ArrayList<Comando> coms = new ArrayList<Comando>();}
+{
+  <VOID> <MAIN> <ACHAVES> 
+  decls = VarDecl() 
+  coms = SeqComandos() 
+  <FCHAVES>
+  
+  {return new Main(decls, coms);}
+}
+
+ArrayList<VarDecl> VarDecl() :
+{String type = null; Token var = null; ArrayList<VarDecl> result = new ArrayList<VarDecl>();}
+{
+  ( <LET> type = Tipo() var = <TOKEN_id> <PV> {result.add(new VarDecl(type, var.image));})* 
+  
+  {return result;}
+}
+
+String Tipo() :
+{Token result = null;}
+{
+  (result = <FLOAT> | result = <BOOL> | result = <VOID>)
+  
+  {return result.image;}
+}
+
+ArrayList<Comando> SeqComandos() :
+{Comando c = null; ArrayList<Comando> result = new ArrayList<Comando>();}
+{
+  (c = Comando() {result.add(c);})*
+  
+  {return result;}
+}
+
+
+Comando Comando() :
+{Token id = null; Exp e = null; ArrayList<Comando> b = new ArrayList<Comando>(); ArrayList<Exp> args = null;}
+{
+  LOOKAHEAD(2)
+  id = <TOKEN_id> <ATRIB> e = Exp() <PV>
+  {return new CAtribuicao(0, id.image, e);}
+|
+
+  id = <TOKEN_id> <OPENPAREN> args = ListaExp() <CLOSEPAREN> <PV>
+  {return new CChamadaFun(0, id.image, args);}
+|
+  <IF> e = Exp() <ACHAVES> b = SeqComandos() <FCHAVES> <PV>
+  {return new CIf(0, e, b);}
+|
+  <WHILE> e = Exp() <DO> <ACHAVES> b = SeqComandos() <FCHAVES> <PV>
+  {return new CWhile(0, e, b);}
+|
+  <READ> e = Exp() <PV>
+  id = <TOKEN_id> <ATRIB> <READ> <OPENPAREN> <CLOSEPAREN> <PV>
+  {return new CReadInput(0, id.image);}
+|
+  <RETURN> e = Exp() <PV>
+  {return new CReturn(0, e);}
+|
+  <PRINT> e = Exp() <PV>
+  {return new CPrint(0, e);}
+}
+
+
+Exp Exp() :
+{Exp e1 = null; Exp e2 = null; String op = null; Exp result = null;}
+{
+  <OPENPAREN> e1 = Exp() op = Op() e2 = Exp() <CLOSEPAREN>
+  {return new EOpExp(op, e1, e2);}
+|
+  result = Fator()
+  {return result;}
+}
+
+Exp Fator() :
+{Token id = null; ArrayList<Exp> args = null; Token num = null; Exp result = null;}
+{
+  LOOKAHEAD(2)
+  id = <TOKEN_id> <OPENPAREN> args = ListaExp() <CLOSEPAREN> 
+  {return new EChamadaFun(id.image, args);}
+|
+  id = <TOKEN_id> 
+  {return new EVar(id.image);}
+|
+  num = <TOKEN_numliteral> 
+  {return new EFloat(Float.parseFloat(num.image));}
+|
+  <TRUE> 
+  {return new ETrue();}
+|
+  <FALSE>  
+  {return new EFalse();}
+}
+
+String Op() :
+{Token op = null;}
+{
+  (op = <SOMA> | op = <SUB> | op = <MULT> | op = <DIV> | op = <AND> | op = <OR> | op = <LESSER> | op = <GREATER> | op = <EQUAL>)
+  
+  {return op.image;}
+}
+
+ArrayList<Exp> ListaExp() :
+{Exp e = null; ArrayList<Exp> result = new ArrayList<Exp>();}
+{
+  [e = Exp() {result.add(e);} 
+    (<V> e = Exp() {result.add(e);})*
+  ]
+  
+  {return result;}
+}
+
+Fun Func() :
+{String retorno = null; Token nome = null; ArrayList<ParamFormalFun> params = new ArrayList<ParamFormalFun>(); ArrayList<VarDecl> vars = new ArrayList<VarDecl>(); ArrayList<Comando> body = new ArrayList<Comando>();}
+{
+   <DEF> retorno = Tipo() nome = <TOKEN_id> <OPENPAREN> params = ListaArg() <CLOSEPAREN> <ACHAVES> vars = VarDecl() body = SeqComandos() <FCHAVES> 
+   
+   {return new Fun(nome.image, params, retorno, vars, body);}
+}
+
+ArrayList<ParamFormalFun> ListaArg() :
+{String tipo = null; Token id = null; ArrayList<ParamFormalFun> result = new ArrayList<ParamFormalFun>();}
+{
+  [tipo = Tipo() id = <TOKEN_id> {result.add(new ParamFormalFun(id.image, tipo));} 
+    (<V> tipo = Tipo() id = <TOKEN_id> {result.add(new ParamFormalFun(id.image, tipo));})*
+  ]
+  
+  {return result;}
+}
